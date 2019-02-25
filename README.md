@@ -8,6 +8,7 @@ XLConnect
 Dataset 1 - 22/12/2015 04:00 PM to 28/12/2015 09:59 AM - No attack
 Dataset 2 - 28/12/2015 09:59 AM to 2/1/2016 2:59:59 PM - Both attack and no attacks
 
+In total, there are 395298 normal observations (87.86 %) and 54621 attacks (12.41 %).
 
 # Attacks
 
