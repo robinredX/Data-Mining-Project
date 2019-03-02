@@ -1,0 +1,57 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+
+\title{Detection of Attacks on a Water Treatment Unit}
+\author{Robin Khatri}
+\date{05 March 2019}
+
+\usepackage{natbib}
+\usepackage{graphicx}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Water treatment units, power grids, nuclear plants and other types of industrial infrastructure form today the backbone of economies. These units however, which usually operate on SCADA (Supervisory Control And Data Acquisition), are increasingly becoming the target of cyber-attacks. This is mainly facilitated from the many vulnerabilities that exist in control systems and the large scale (and sometimes irreversible) damage that can be achieved.  
+\\
+\\
+More specifically, water treatment units are increasingly becoming the target of these types of attacks. However, the existing literature on the subject is quite limited and often fails to investigate compromised water facilities with incidents of real cyber-attacks. 
+\\
+\\
+Pre-2015 studies combined general CPS characteristics to build knowledge on attacking behaviors [1][2][3], due to lack of existing datasets, while post-2015 research focused on static analysis of water facilities to detect malicious activity [4][5][6][7]. Nevertheless, no previous study made use of machine learning methods that can handle large volumes of data and reveal behavioral patterns. The increasing need of such analysis is becoming even more evident when considering recent incidents; in 2011, a cyber-attack focused on simply shutting down a water pump in Illinois, while in 2016, hackers were able to change the levels of chemicals of a drinking water process. 
+\\
+\\
+From the above, it is evident, that past studies of the relationship between attacks and physical properties of water present several limitations. In this paper, we propose a novel method for predicting whether a water treatment system has been compromised, based on analysis of its physical properties. Our aim was to compare several machine learning algorithms to detect the compromised use of a water treatment unit, based on the SWaT dataset (Secure Water Treatment), that was acquired from the iTrust Laboratory of Singapore University of Technology and Design [8].  
+\\
+\\
+
+\section{Related Work}
+Even though water treatment plants represent vital assets in health, environmental and financial development, there has been very limited research on the relationship of potential malicious activity and water characteristics of the physical process itself; in 2007, Slay and Miller addressed the critical components of SCADA systems, an investigation that analyzed the 2000 Maroochy Water Services breach in Australia, where the attacker took control of 150 sewage pumping stations [1]. In 2008, Cardenas et al. proposed a hypothetical mathematical framework to analyze attacks in SCADA systems [2], while in 2011, researchers modeled and examined the relationship between cyber components and physical processes of a CPS prototype of an Industrial Control System [3].  
+\\
+\\
+In 2015, the iTrust lab of the Singapore University of Design and Design built a mini-scale water treatment unit (the SWaT testbed, or the Secure Water Treatment unit), where all the components of the physical process were connected online, and by doing so, the system could be tested and observed for incidents of cyber-attacks [9]. As a result, more research started to be conducted on the relationship of malicious attacks and the response of water systems features. More specifically, in 2016, Kang et al. modeled the behavior of sensors and actuators of the unit was studied towards the detection of cyber-attacks and possible vulnerabilities of the system [4].  
+\\
+\\
+During the same year, Adepu and Mathur proposed the use of invariants, “a condition between physical and chemical properties” that describes the Industrial Control System in a given state [5] and then, used the water properties from one stage to another to detect Single-Stage Multipoint attacks [6]. In another study, they also investigated the response of the unit to novel attacks based on the performance of the unit [7].
+
+\section{Methods and Tools}
+\subsection{The dataset}
+During the data collection process, the researchers run the testbed for a total of 11 days. During the first 7, the system operated normally, while the remaining days were used to launch a total of 36 attacks. The researchers used 4 different types of attacks; Single Stage Single Point (26 attacks), Single Stage Multi Point (4 attacks), Multi Stage Single Point (2 attacks) and Multi Stage Multi Point (4 attacks). The duration of attacks also varied according to type (a few minutes to an hour) and consequently did their effect on the process. As a result, the dataset featured a total of 51 water properties (physical and chemical, e.g. pH, flow meter, pressure, etc.) that were derived from the various sensors and actuators, along with timestamp and a label (Normal or Attack mode). Sensor and actuator coding can also be viewed in Figure 2. Features were recorded once every second, which yielded a dataset of 449,921 instances [10].  
+
+\subsection{Pre-processing}
+Firstly, the datasets for normal and attack instances were seperated and so they were combined in order to produce dataset covering entire 11 days. Further, we had two sets of datasets since there were two datasets for normal behavior of the SWaT. Version 0 consisted of the entire period even when the system was being filled up while version 1 consisted of the entire period except when the system was being filled up. This is crucial to test the our analysis on both of these datasets since during the time of system being filled up, the system sensors may behave abnormally even if there is no attack. Therefore, to keep the integrity of the study, we considered both versions of datasets. 
+\\
+\\
+Secondly, in the attack dataset, the label was simple "attack", to produce better understanding of each type of attack and to test model's robustness for each category of attack, the attacks were further divided in to 4 labels: SSSP, SSMP, MSSP, MSMP denoting 4 categories of attacks as described in section 3.1. To do that, we utilized documentation that came with the dataset. 
+\\
+\\
+During the pre-processing phase, nine features of zero variance were removed from the initial dataset. Those features consisted of P101, P202, P206, P301, P401, P404, P502, P601 and P603. The remaining features were normalized. Also, a sample of 50,000 instances was selected (out of the original 449,921), while the original proportion of malicious/benign labels was kept intact. In this reduced dataset, we maintained the original percentage for each type of attack. The sampling process was conducted using R Studio [11]. 
+\\
+\\
+\section{Analysis}
+Due to the objective of detecting multi-attacks, we divided the analysis process in two parts: Detection of known attacks and detection of previously unknown attacks.
+\subsection{Detection of known attacks}
+\bibliographystyle{plain}
+\bibliography{references}
+\end{document}
