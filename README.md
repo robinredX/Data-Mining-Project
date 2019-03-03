@@ -1,7 +1,11 @@
-# Data-Mining-Project---SWaT
+# Data-Mining-Project - SWaT
 
 # Required R Packages
-XLConnect
+openxlsx, dplyr, DMwR, randomForest, nnet, ROCR
+library(dplyr)
+library(DMwR)
+library(randomForest)
+library(nnet)
 
 # Timeline
 
@@ -13,10 +17,10 @@ In total, there are 395298 normal observations (87.86 %) and 54621 attacks (12.4
 # Attacks
 
 Four categories of attacks:
-1. SSSP
-2. SSMP
-3. MSSP
-4. MSMP
+1. SSSP: Single Stage Multi Point
+2. SSMP: Single Stage Multi Point
+3. MSSP: Multi Stage Single Point
+4. MSMP: Multi Stage Multi Point
 
 Description for each attack: 
 
