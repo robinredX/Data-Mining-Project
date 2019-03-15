@@ -8,10 +8,12 @@ Part I: Check quality of data
 ##############################
 
 # Load required libraries
-# install.packages(c("openxlsx", "dplyr","DMwR", "randomForest", "keras")) # Unquote if you need to install the packages
+# install.packages(c("openxlsx", "ggplot2", "lubridate", "dplyr","DMwR", "randomForest", "keras")) # Unquote if you need to install the packages
 
 require(openxlsx)
 require(dplyr)
+require(lubridate)
+require(ggplot2)
 
 # Set directory
 
@@ -38,6 +40,7 @@ levels(dataset$`Normal/Attack`)
 dataset <- within(dataset, `Normal/Attack` <- factor(`Normal/Attack`, labels = c(1, 1, 0))) 
 levels(dataset$`Normal/Attack`)
 # 1: Attack, 0: Normal
+# Visualize target variable
 
 # Check for missing data
 
@@ -56,9 +59,64 @@ tail(dataset$Timestamp)
 
 # TODO Missing timestamps
 
-# Plot normal and attack instances over the duration
-plot(dataset$Timestamp, dataset$`Normal/Attack`)
+# Number of attacks by date
+# Extract dates from timestamps
+dataset$date <- date(dataset$Timestamp)
 
-# Visualize target variable
+# Get count of attack instances by date
+dataset$new <- as.character(dataset$`Normal/Attack`)
+dataset$new <- as.numeric(dataset$new)
+date.attacks <- dataset %>%
+  group_by(date) %>%
+  summarise(n_attacks = sum(new)) %>%
+  arrange(desc(n_attacks))
+date.attacks
+# Plot count of attack instances by date
+ggplot(date.attacks, aes(x = date, y = n_attacks)) + geom_col() + labs(x = 'Date', y = 'Attacks', title = 'Attacks by date')
+table(dataset$`Normal/Attack`)
+
+#########################
+Part I: Feature Selection
+#########################
+
+# TODO Get variances of all features
+
+# Remove features with 0 variances as they do not provide any distinction between two categories of response, if any
+var_zero <- rep(0, n_features)
+
+for (i in 2:n_features){
+  if (var(as.numeric(dataset[,i])) == 0){
+    var_zero[i] <- 1
+  }
+}
+
+var_zero
+indices <- which(var_zero==1) 
+print(colnames(dataset)[indices]) # print names of features with zero variance, if any
+dataset_new <- dataset[,-indices] 
+colnames(dataset_new)
+# Normalize features
+dataset_normalized <- data.frame(scale(dataset_new[,2:45]))
+dataset_normalized$label <- dataset_new$`Normal/Attack`
+glimpse(dataset_normalized)
+
+# Importance of features
+
+# Principal component analysis
+
+# Sampling
+
+# SMOTE
+
+# Training
+
+# Testing
+
+# Accuracy
+
+# Robustness for different categories of attacks
+
+
+
 
 
