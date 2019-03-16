@@ -8,7 +8,7 @@
 ##############################
 
 # Load required libraries
-# install.packages(c("openxlsx", "ggplot2", "dplyr","DMwR", "randomForest", "keras")) # Unquote if you need to install the packages
+# install.packages(c("openxlsx", "corrplot", "lubridate", "FSelector", "ggplot2", "dplyr","DMwR", "randomForest", "keras")) # Unquote if you need to install the packages
 
 require(openxlsx)
 require(dplyr)
@@ -16,7 +16,9 @@ require(lubridate)
 require(ggplot2)
 require(corrplot)
 require(randomForest)
-require(reshape2)
+require(DMwR)
+require(FSelector)
+require(randomForest)
 # require(h2o)
 
 # Set directory
@@ -126,7 +128,7 @@ for(i in 2:(n_features)){
     xlab("1 hour after the first missing timestamp") + ylab(yname)
   ggsave(paste(yname, "after.png"), device = "png") # Saves all the plots as png images
 }
-setwd(original_path)
+setwd(original_path)   # Set path to the path we originally used
 
 # Note: Since attacks were carried out at scheduled times, there will be no enquiry into relationship of time in detection of attacks
 
@@ -171,7 +173,7 @@ for(i in cat_indices){
   ggsave(paste(colnames(dataset)[i], ".png"), device = "png") # Saves all the plots as png images
 }
 
-setwd(original_path)  
+setwd(original_path)   # Set path to the path we originally used
 
 # we found from plots that
 # Variables P202, P401, P404, P4502, P601, P603 have only one value i.e. they have zero variance
@@ -221,7 +223,6 @@ for (i in cont_indices){
     theme_minimal()
   ggsave(paste(colnames(dataset)[i], ".png"), device = "png") # Saves all the plots as png images
 }
-setwd(original_path)
 
 # After analyzing plots, it is clear that during instances labelled as attack, 
 # the distribution of continuous features is different that those of normal distributions. 
@@ -229,7 +230,90 @@ setwd(original_path)
 # in distributions during instances for normal and attack.
 # We'll use this information during feature selection
 
+# Correlation between variables
+
+M = cor(as.matrix(dataset[,cont_indices]))
+png(filename="correlations.png")
+corrplot(M, method = "color")
+dev.off()
+setwd(original_path) # Set path to the path we originally used
+
+# Here many variables are not correlated and as we have seen, some variables gets more affected
+# by the attacks, and therefore we shall not do PCA, instead we shall select best feature for
+# classification of an instance into an attack or a normal instance
+
+
+# We want to get an idea of number of attack instances per day
+# We'll create a column with day number i.e. Dec 22 = day 1, Feb 02 = last 11
+temp = date(dataset$Timestamp) 
+temp1 = date(dataset$Timestamp[1])
+dataset$day = as.numeric(temp - temp1)+1 # Starts at day 0
+head(dataset$day)
+
+# Visualize number of attacks daywise (Since the attacks dataset starts from Dec 28,
+# we'll start from day 7)
+
+dataset_day_attack <- dataset[dataset$day>=6,]
+dataset_day_attack <- dataset[dataset$`Normal/Attack`==1,]
+
+dataset_day_attack %>% 
+  count(dataset_day_attack$day) %>% 
+  mutate(perc = n*100 / nrow(dataset_day_attack)) -> temp_data
+
+x = c("28 Dec", "29 Dec", "30 Dec", "31 Dec", "1 Feb", "2 Feb")
+colnames(temp_data)[1] = "day"
+temp_data$day = c("28 Dec", "29 Dec", "30 Dec", "31 Dec", "1 Feb", "2 Feb")
+temp_data$day <- factor(temp_data$day,levels = x)
+temp_data
+ggplot(data = temp_data, aes(x=day, y=perc, fill=day))+
+  geom_bar(stat="identity")+ ggtitle("Number of attacks instances")+
+  labs(x = "Day", y = "Percent of Attack instances")+
+  theme_minimal()
+path = paste(original_path, "/distribution_of_attacks",sep="")
+dir.create(path)
+setwd(path)
+ggsave(paste("day_wise_distribution", ".png"), device = "png")
+
+# Visualize attacks hour wise
+dataset$hour <- hour(dataset$Timestamp)
+dataset_hour_attack <- dataset[dataset$day>=6,]
+dataset_hour_attack <- dataset[dataset$`Normal/Attack`==1,]
+
+dataset_hour_attack %>% 
+  count(dataset_hour_attack$hour) %>% 
+  mutate(perc = n*100 / nrow(dataset_hour_attack)) -> temp_data
+
+colnames(temp_data)[1] = "hour"
+
+ggplot(data = temp_data, aes(x=hour, y=perc, fill=hour))+
+  geom_bar(stat="identity")+ ggtitle("Number of attacks instances")+
+  labs(x = "Hour", y = "Percent of Attack instances")+
+  theme_minimal()
+
+ggsave(paste("hour_wise_distribution", ".png"), device = "png")
+setwd(original_path)
+
+
 # Relationship between processes of the system
+
+# We'll idenify the behavior of level of the water tank, valves, pump, ORP Fluctuations,  
+
+# Relationship between ORP fluctuation (AIT402) and attacks 
+
+sn = c(1:n_obs)  # Series number to indicate sample number
+dataset$sn = sn
+
+
+ggplot(data=dataset, aes(x=sn, y=AIT402, group=dataset$`Normal/Attack`)) +
+  geom_line(aes(linetype=dataset$`Normal/Attack`))+
+  geom_point()
+ggsave(paste("orp", ".png"), device = "png")
+
+# Feature selection
+
+# ensure the results are repeatable
+
+
 
 
 
@@ -253,62 +337,152 @@ dataset$date <- date(dataset$Timestamp)
 # Part I: Feature Selection
 ###########################
 
-# TODO Get variances of all features
+# Normalize data
+temp2 <- dataset[dataset$day>=6,]
+# Remove features from previous analysis - categorical variables for which variance was 0
+temp2 <- temp2[,-(zero_var_indices)]
+colnames(temp2)
+temp2 <- temp2[,2:(ncol(temp2)-3)] # Removing label, day, hour, sn
+n = ncol(temp2)
+colnames(temp2)[n] <- "label" # Label is the new target variable name
+temp3 <- data.frame(scale(temp2[,1:(n-1)]))
+label <- temp2$label
+data <- cbind(temp3,label)
+head(data)
 
-# Remove features with 0 variances as they do not provide any distinction between two categories of response, if any
-var_zero <- rep(0, n_features)
+# # Sampling (SRS with keeping the original label proportions)
 
-for (i in 2:n_features){
-  if (var(as.numeric(dataset[,i])) == 0){
-    var_zero[i] <- 1
+p = 100000
+m = nrow(data)
+data_normal <- data[data$label==0,]
+data_attack <- data[data$label==1,]
+n_normal_sample = round(nrow(data_normal)*p/m)
+n_attack_sample = p - n_normal_sample
+
+sample_normal <- data_normal[sample(nrow(data_normal),round(n_normal_sample)),] # Only normal data - 80 percent
+sample_attack <- data_attack[sample(nrow(data_attack),n_attack_sample),]
+sample_data <- rbind(sample_normal, sample_attack)
+sample_data <- sample_data[sample(p,p),]
+  
+n_train <- round(80*p/100)
+  
+train <- sample_data[1:n_train,]
+test <- sample_data[(n_train+1):p,]
+head(train)
+head(test)
+
+# Since data is unbalanced, we can do undersampling for the majority class (normal instances) and oversampling for the
+# minority class (attack instances)
+# One way to do it is SMOTE. Read about SMOTE at https://arxiv.org/pdf/1106.1813.pdf
+# To test the model accurately, the SMOTE will be done only on the training set
+
+newsample <- SMOTE(label ~ ., data = train, perc.over = 200,perc.under=100)
+newsample <- data.frame(newsample)
+t <- table(newsample$label) # Number of observations in our training data after SMOTE = 19095 (7638: normal, 11457: attack)
+prop_0 <- t[1]/sum(t); prop_1 <- t[2]/sum(t)
+prop_0 # 40 % Normal instances
+prop_1 # 60 % Attack instances  
+t
+# Write files for training and testing
+write.csv(newsample,"training.csv")
+write.csv(test, "testing.csv")
+
+which(colnames(newsample)=="P301")
+newsample1 = newsample[,-23]
+test1 = test[,-23]
+
+# Feature selection
+# We'll use information gain and see if the results match our observations 
+# We'll use only training set for the feature selection so that we can test accurately and there is no influence of test
+# set on training our model
+
+newsample1[,1:(ncol(newsample1)-1)] <- newsample1[,1:(ncol(newsample1)-1)] *1000 # Multiplying by 1000 to increase the bin
+ig <- information.gain(label~., newsample1)
+
+# size. The package FSelector calls Weka, Rweka:Discretize and when various values are found similar, it gives bin error
+head(newsample1)
+min(ig)
+max(ig)
+mean_ig <- sum(ig)/ncol(newsample1)
+mean_ig
+ig$attr_importance
+Feature <- rownames(ig)
+importance <- ig$attr_importance
+feature_importance <- data.frame(Feature, importance)
+feature_importance <- feature_importance[order(feature_importance$importance, decreasing = TRUE),] # Order in decreasing order by feature importance
+sorted_feature <- feature_importance$Feature
+
+feature_importance$Feature <- factor(feature_importance$Feature, levels = sorted_feature)
+
+# Visualize feature importance
+plot <- ggplot(data = feature_importance, aes(x=Feature, y=round(importance,4), fill=importance))+
+  geom_bar(stat="identity")+ ggtitle("Feature Importance")+
+  geom_text(aes(label=round(importance,4), hjust=-0.5, vjust=0.5)) +
+  labs(x = "Feature", y = "Importance")+
+  theme_minimal() + 
+  coord_flip()
+plot
+
+path = paste(original_path, "/feature_selection", sep="")
+dir.create(path)
+setwd(path)
+ggsave("information_gain.png", device="png")
+setwd(original_path)
+
+
+text(x = plot, y = newsample1$importance, label = newsample1$importance, pos = 3, cex = 0.8, col = "black")
+
+# It is evident that many features are redudandant. 
+# We'll see if the number of features with importance greater than mean importance seems enough
+
+temp4 = rep(0,nrow(ig))
+for(i in 1:nrow(ig)){
+  if(ig$attr_importance[i]>mean_ig){
+    temp4[i] = rownames(ig)[i]  
+  }
+}
+sld_features = temp4[temp4!=0] # Selected features
+
+print("Selected features are:"); sld_features
+reduction = ncol(newsample1)- length(sld_features) # 
+sld_features
+
+paste(24, "features remaining from original 53")
+
+index = rep(0,ncol(train1))
+
+for(i in 1:(ncol(newsample1)-1)){
+  for(j in 1:length(sld_features)){
+    if(colnames(newsample1)[i]==sld_features[j]){index[i] = 1}  
   }
 }
 
-var_zero
-indices <- which(var_zero==1) 
-print(colnames(dataset)[indices]) # print names of features with zero variance, if any
-dataset_new <- dataset[,-indices] 
-colnames(dataset_new)
-# Normalize features
-dataset_normalized <- data.frame(scale(dataset_new[,2:45])) # Remove Timestamps
-dataset_normalized$label <- dataset_new$`Normal/Attack`
-glimpse(dataset_normalized)
-ncol(dataset_normalized)
-# Importance of features
+index <- which(index==1)
+index # Provides column numbers of feature selected
 
-# Correlation
-# source("http://www.sthda.com/upload/rquery_cormat.r")
-new <- cor(dataset_normalized[,-45])
+new_train <- newsample1[,c(index,ncol(newsample1))]
+glimpse(new_train)
 
-# Principal component analysis
+# Select same indices in testing set
 
-# Sampling (SRS with keeping the original label proportions)
+new_test <- test1[,c(index,ncol(test1))]
+colnames(new_test)
+colnames(new_train)
 
-m = nrow(dataset_normalized)
-p = 50000 # Sample size
-l = p/m
+# So now our training and testing sets are ready
 
-normal_data <- dataset_normalized[dataset_normalized$label==0,]
-n_normal_sample = nrow(normal_data)*p/m
-sample_normal <- normal_data[sample(nrow(normal_data),round(n_normal_sample)),]
-train <- sample_normal[1:80*p/100,] # Only normal data - 80 percent
-test_normal <- sample_normal[(nrow(train)+1):nrow(sample_normal),]
-
-attack_data <- dataset_normalized[dataset_normalized$label==1,]
-sample_attack <- attack_data[sample(nrow(attack_data), round(p-round(n_normal_sample))),]
-test <- rbind(test_normal, sample_attack) # Remaining 20 percent - both normal and attack instances
-table(sample_attack$label)
-
-sample_d <- rbind(sample_normal, sample_attack)
-sample_d <- sample_d[sample(nrow(sample_d),nrow(sample_d)),]
-train <- sample_d[1:40000,]
-test <- sample_d[(nrow(train)+1):nrow(sample_d),]
-
+# Training
 
 # Testing
+
+# Evaluation Metrics
 
 # Accuracy
 
 # Robustness for different categories of attacks
+
+# Random Forest
+
+
 
 
