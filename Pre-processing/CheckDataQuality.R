@@ -16,16 +16,30 @@ require(lubridate)
 require(ggplot2)
 require(corrplot)
 require(randomForest)
-require(h2o)
+require(reshape2)
+# require(h2o)
 
 # Set directory
 
 setwd("C:/users/robin/Desktop/DataMiningProject")
 dir() # Load files in directory
 
-# import dataset
+# Preparing dataset
 
-dataset <- read.xlsx("SWaT_Dataset_Attack_v0.xlsx")
+# import datasets
+
+start = Sys.time()
+normal <- read.xlsx("SWaT_Dataset_Normal_v0.xlsx") # Normal behavior
+attack <- read.xlsx("SWaT_Dataset_Attack_v0.xlsx") # Both normal and attack instances
+end = Sys.time()
+
+end-start # It took around 7 minutes to read the full data
+
+glimpse(attack)
+glimpse(normal)
+
+dataset <- rbind(normal, attack)
+
 rescue <- dataset # A clone of the dataset (Since dataset is large and takes some time to be loaded, it's good to have a copy ready if needed)
 glimpse(dataset) # Dependent variable is character, others are numeric and timestamp is character as well.
 
@@ -43,44 +57,201 @@ levels(dataset$`Normal/Attack`)
 dataset <- within(dataset, `Normal/Attack` <- factor(`Normal/Attack`, labels = c(1, 1, 0))) 
 levels(dataset$`Normal/Attack`)
 # 1: Attack, 0: Normal
-# Visualize target variable
-
-# Check for missing data
-
-which(is.na(dataset)) # No missing datapoint
 
 
 # Timestamps: Convert timestamps into date into POSIXlt format and Sort dataset by timestamps in increasing order
 
 head(dataset$Timestamp)
-dataset$Timestamp <- strptime(dataset$Timestamp, format="%d/%m/%Y %I:%M:%S %p")  # format timestamps into 24 hrs from AM/PM
-dataset <- dataset[order(data$Timestamp),] 
-head(dataset$Timestamp)
-tail(dataset$Timestamp)
+dataset$Timestamp <- strptime(dataset$Timestamp, format="%d/%m/%Y %I:%M:%S %p")
+dataset <- dataset[order(dataset$Timestamp),] 
+# Convert timestamps into 24 hrs from AM/PM
+dataset$Timestamp <- ymd_hms(dataset$Timestamp)
+starttime = min(dataset$Timestamp)
+endtime = max(dataset$Timestamp)
+starttime
+endtime
+
+
+# Check for missing data
+
+which(is.na(dataset)) # No missing datapoint
+
+# Missing timestamps
+
+# Generate a sequence of all timestamps between starttime and endtime
+time_vector <- seq(ymd_hms(starttime),ymd_hms(endtime), by = '1 sec')
+head(time_vector)
+
+missing_times <- time_vector[!time_vector %in% dataset$Timestamp]
+range(missing_times) # There is one missing period
+range = max(missing_times) - min(missing_times)
+start_missing <- min(missing_times)-1 # Last observation in dataset before data is missed
+end_missing <- max(missing_times)+1 # First observation in dataset after data is continued
+
+# Checking if timestamps are missing at random
+
+# For all features, we'll plot graphs to see if there is any change in the instances since we have discontinuity of
+# Timestamps
+
+index1 = which(dataset$Timestamp==start_missing-60*60) # 1 hour before the timestamps went missing
+index2 = which(dataset$Timestamp==start_missing-1) # Last timestamp before discontinuity
+index3 = which(dataset$Timestamp==end_missing+1) # First timestamp after discontinuity
+index4 = which(dataset$Timestamp==end_missing-60*60) # 1 hour after the resume in continuity of timestamps
+dataset_before <- dataset[index1:index2,]
+dataset_after <- dataset[index3:index4,]
+
+dir.create(" before_time_discontinuity")
+dir.create("after_time_discontinuity")
+original_path = getwd()
+
+path_before = paste(original_path,"/before_time_discontinuity",sep="")
+path_after = paste(original_path,"/after_time_discontinuity",sep="")
+  
+# Plot features before the discontinuity
+setwd(path_before)
+for(i in 2:(n_features)){
+  #   Plots and saves variation in each feature as png images
+  yname = colnames(dataset_new)[i]
+  ggplot(dataset_before, aes(dataset_before$Timestamp, dataset_before[[i]])) + geom_line() +
+  xlab("1 hour before the first missing timestamp") + ylab(yname)
+  ggsave(paste(yname, "before.png"), device = "png") 
+}
+
+# Plot features after the discontinuity
+setwd(path_after)
+for(i in 2:(n_features)){
+  #   Plots and saves variation in each feature as png images
+  yname = colnames(dataset_after)[i]
+  ggplot(dataset_after, aes(dataset_after$Timestamp, dataset_after[[i]])) + geom_line() +
+    xlab("1 hour after the first missing timestamp") + ylab(yname)
+  ggsave(paste(yname, "after.png"), device = "png") # Saves all the plots as png images
+}
+setwd(original_path)
 
 # Note: Since attacks were carried out at scheduled times, there will be no enquiry into relationship of time in detection of attacks
 
-# TODO Missing timestamps
+# Visualize target variable
+
+ggplot(dataset, aes(x=`Normal/Attack`))+
+  geom_bar(stat="count", width=0.7, fill="lightblue")+ ggtitle("Number of attacks and normal instances")+
+  labs(x = "Normal/Attack", y = "Count")+
+  theme_minimal()
+
+# Target variable distribution by date
+
+# Identify variables - categorical
+summary(dataset)
+# it is clear from summary that some variables are categorical - taking only two values, and so we can first see
+# there relationships with the target variable
+
+# Binary variables
+find_cat <- function(dataset){
+  categorical = rep(0, n_features)
+  for(i in 2:n_features){
+    if (length(unique(dataset[[i]])) <=2){categorical[i]=1}
+  }
+  return(which(categorical==1))
+}
+ 
+cat_indices <- find_cat(dataset) # Returns indices of features that are binary
+
+# Visualize binary variables with respect to the normal and attack instances
+
+dir.create("categorical_variable_plots")
+path = paste(original_path, "/categorical_variable_plots",sep="")
+setwd(path)
+
+for(i in cat_indices){
+  # Plots and saves to directory - path
+  ggplot(dataset, aes(dataset[[i]], ..count..)) + geom_bar(aes(fill = dataset[[53]]), position = "dodge") +
+    labs(x = colnames(dataset)[i], y = 'Count', title = 'Attacks by date') +
+    scale_fill_discrete(name="Instance",
+                        breaks=c(1,0),
+                        labels=c("Attack", "Normal"))
+  ggsave(paste(colnames(dataset)[i], ".png"), device = "png") # Saves all the plots as png images
+}
+
+setwd(original_path)  
+
+# we found from plots that
+# Variables P202, P401, P404, P4502, P601, P603 have only one value i.e. they have zero variance
+# we can also check it from following function
+
+findvarzero <- function(dataset){
+  varindices <- rep(0,n_features+1)
+  for (i in 2:n_features){
+    if(isTRUE(var(dataset[[i]])==0)){
+      varindices[i] = 1
+      }
+  }
+  varindices = which(varindices==1)
+  return(varindices)
+}
+
+zero_var_indices <- findvarzero(dataset)
+zero_var_indices # The function returns the same features that we found from plot
+
+for(i in zero_var_indices){
+print(colnames(dataset)[i])}
+
+# Variables P402, P501, UV401 have one category that is significant during attacks
+# We'll use this information during feature selection
+
+# Understanding continuous variables
+# Distribution of continuous variables during normal and attack instances
+# We'll use violin plots for all continuous variables for this 
+
+# Get indices of continuous variables
+cat_indices
+feature_indices = c(1:n_features) # Not taking timestamp
+cont_indices <- which(!feature_indices %in% cat_indices)
+cont_indices <- cont_indices[-1]
+
+# Plot and save the plots
+dir.create("Continuous_feature_distributions")
+path = paste(original_path,"/continuous_feature_distributions",sep="")
+setwd(path)
+for (i in cont_indices){
+  ggplot(dataset, aes(x=dataset$`Normal/Attack`, y=dataset[[i]], fill=dataset$`Normal/Attack`)) +
+    geom_violin(trim=FALSE)+
+    scale_fill_manual(values = c("red", "lightblue"), name = "Instance",
+                      breaks = c(1,0),
+                      labels = c("Attack", "Normal")) +
+    labs(x = 'Instance - Normal/Attack', y = colnames(dataset)[i], title = paste('Distribution of',colnames(dataset)[i],sep=" ")) +
+    theme_minimal()
+  ggsave(paste(colnames(dataset)[i], ".png"), device = "png") # Saves all the plots as png images
+}
+setwd(original_path)
+
+# After analyzing plots, it is clear that during instances labelled as attack, 
+# the distribution of continuous features is different that those of normal distributions. 
+# A key observation is also that not all continuous variables represent that much difference
+# in distributions during instances for normal and attack.
+# We'll use this information during feature selection
+
+# Relationship between processes of the system
+
+
 
 # Number of attacks by date
 # Extract dates from timestamps
 dataset$date <- date(dataset$Timestamp)
 
 # Get count of attack instances by date
-dataset$new <- as.character(dataset$`Normal/Attack`)
-dataset$new <- as.numeric(dataset$new)
-date.attacks <- dataset %>%
-  group_by(date) %>%
-  summarise(n_attacks = sum(new)) %>%
-  arrange(desc(n_attacks))
-date.attacks
+# dataset$new <- as.character(dataset$`Normal/Attack`)
+# dataset$new <- as.numeric(dataset$new)
+# date.attacks <- dataset %>%
+#  group_by(date) %>%
+#  summarise(n_attacks = sum(new)) %>%
+#  arrange(desc(n_attacks))
+# date.attacks
 # Plot count of attack instances by date
-ggplot(date.attacks, aes(x = date, y = n_attacks)) + geom_col() + labs(x = 'Date', y = 'Attacks', title = 'Attacks by date')
-table(dataset$`Normal/Attack`)
+# ggplot(date.attacks, aes(x = date, y = n_attacks)) + geom_col() + labs(x = 'Date', y = 'Attacks', title = 'Attacks by date')
+# table(dataset$`Normal/Attack`)
 
-#########################
-Part I: Feature Selection
-#########################
+###########################
+# Part I: Feature Selection
+###########################
 
 # TODO Get variances of all features
 
@@ -132,62 +303,6 @@ sample_d <- rbind(sample_normal, sample_attack)
 sample_d <- sample_d[sample(nrow(sample_d),nrow(sample_d)),]
 train <- sample_d[1:40000,]
 test <- sample_d[(nrow(train)+1):nrow(sample_d),]
-
-# convert datasets to H2OFrame
-h2o.init() # Initiailize h2o
-train_h2o <- as.h2o(train)
-test_h2o <- as.h2o(test)
-response <- "label"
-features <- setdiff(colnames(train_h2o), response)
-model_nn <- h2o.deeplearning(x = features,
-                             training_frame = train_h2o,
-                             model_id = "model_nn",
-                             autoencoder = TRUE,
-                             reproducible = TRUE, #slow - turn off for real problems
-                             ignore_const_cols = FALSE,
-                             seed = 42,
-                             hidden = c(10, 2, 10), 
-                             epochs = 100,
-                             activation = "Tanh")
-
-h2o.saveModel(model_nn, path="model_nn", force = TRUE)
-
-model_nn <- h2o.loadModel("C:\\Users\\robin\\Desktop\\DataMiningProject\\model_nn\\model_nn")
-model_nn
-test_autoenc <- h2o.predict(model_nn, test_h2o)
-
-
-train_features <- h2o.deepfeatures(model_nn, train_h2o, layer = 2) %>%
-  as.data.frame() %>%
-  mutate(Class = as.vector(train_h2o$label))
-
-ggplot(train_features, aes(x = DF.L2.C1, y = DF.L2.C2, color = Class)) +
-  geom_point(alpha = 0.1)
-
-train_features <- h2o.deepfeatures(model_nn, train_h2o, layer = 3) %>%
-  as.data.frame() %>%
-  mutate(Class = as.factor(as.vector(train_h2o$label))) %>%
-  as.h2o()
-
-features_dim <- setdiff(colnames(train_features), response)
-
-model_nn_dim <- h2o.deeplearning(y = "Class",
-                                 x = features_dim,
-                                 training_frame = train_features,
-                                 reproducible = TRUE, #slow - turn off for real problems
-                                 balance_classes = TRUE,
-                                 ignore_const_cols = FALSE,
-                                 seed = 42,
-                                 hidden = c(10, 2, 10), 
-                                 epochs = 100,
-                                 activation = "Tanh")
-
-h2o.saveModel(model_nn_dim, path="model_nn_dim", force = TRUE)
-model_nn_dim <- h2o.loadModel("C:\\Users\\robin\\Desktop\\DataMiningProject\\model_nn_dim\\DeepLearning_model_R_1552686872729_1")
-model_nn_dim
-# Training
-head(train_h2o$label)
-sum(train_h2o$label)
 
 
 # Testing
