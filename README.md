@@ -17,20 +17,14 @@ Dataset comes in two parts - first part is for first 7 days, second part is for 
 
 ## File sizes 
 
-First seven days (normalv0.xlsx) - 120 MB </br>
+First seven days (normalv0.xlsx) - 124 MB </br>
 second part (attackv0.xlsx) - 110 MB </br>
 
 # Attacks
 
-Four categories of attacks:
-1. SSSP: Single Stage Multi Point
-2. SSMP: Single Stage Multi Point
-3. MSSP: Multi Stage Single Point
-4. MSMP: Multi Stage Multi Point
-
-Description for each attack: 
-
 # Objective
 
-1. To detect attacks with accuracy and less false positives (Accuracy measure to be used F-1 Score, Recall %)
-2. To identify the category of the attacks 
+1. Understanding underlying processes
+2. To detect attacks with accuracy and less false positives (Accuracy measure to be used FPR, TPR, AUC, Recall %)
+3. To identify the category of the attacks 
+
