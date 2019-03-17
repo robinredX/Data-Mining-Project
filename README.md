@@ -1,7 +1,7 @@
 # Data-Mining-Project - SWaT
 
 # Required R Packages
-openxlsx, dplyr, DMwR, randomForest, lubridate, corrplot, FSelector, reshape2, ggplot2, ROCR
+openxlsx, dplyr, DMwR, randomForest, lubridate, corrplot, FSelector, reshape2, ggplot2, ROCR, e1071
 
 # Dataset
 
