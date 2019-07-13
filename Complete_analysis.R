@@ -61,7 +61,7 @@ endtime
 
 which(is.na(dataset)) # No missing datapoint
 
-# Missing timestamps
+# Missing timestamps (To find if unusual events)
 
 # Generate a sequence of all timestamps between starttime and endtime
 time_vector <- seq(ymd_hms(starttime),ymd_hms(endtime), by = '1 sec')
@@ -322,7 +322,7 @@ data_process2 <- as.data.frame(data_process2)
 colnames(data_process2) <- c("sn","P201","AIT201")
 
 # Since the variables describing the process are at different value levels, we should scale
-# Scale
+# Scale data for further process
 data_process2[,2:3] <- scale(data_process2[,2:3])
 
 # Take a small sample to visualize
@@ -491,9 +491,6 @@ for(i in 1:(ncol(newsample)-1)){
     if(colnames(newsample)[i]==sld_features[j]){index[i] = 1}  
   }
 }
-
-
-
 
 index <- which(index==1)
 index # Provides column numbers of feature selected
