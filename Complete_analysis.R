@@ -587,8 +587,6 @@ find_optimal = function(perf, pred){
 }
 print(find_optimal(perf, pred))
 
-starttime <- Sys.time()
-starttime
 endtime <- Sys.time()
 getduration <- endtime - starttime
 getduration
